@@ -1,11 +1,11 @@
 
-
+import os
 import numpy as np
 import random
 import openai
 
 # Define your OpenAI API key (preferably as an environment variable)
-openai.api_key = 'your OpenAi Key here '
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
 # Q-Learning settings
 n_states = 10  # Assuming 10 different types of questions for simplicity
@@ -37,22 +37,34 @@ def update_Q(state, action, reward):
 
 # Function to interact with GPT-3.5-turbo (or GPT-4 when available) via the chat API
 def get_LLM_answers(question):
-    print(f"Fetching answers for the question: {question}")
+    print(f"Fetching answers for the question: '{question}'")
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Replace with "gpt-4" when it's available
+            model="gpt-4",  # or the correct identifier for the model you are using
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": question}
             ]
         )
-        messages = response.get('messages', [])
-        answers = [msg['content'] for msg in messages if msg['role'] == 'assistant']
-        print(f"Received answers: {answers}")
-        return answers
+        print(f"Full response: {response}")  # Print the full response
+        if 'choices' in response and response['choices']:
+            messages = response['choices'][0].get('message', {}).get('content', "")
+            if messages:
+                print(f"Received answers: {messages}")
+                return messages.strip()
+            else:
+                print("Received empty messages from the model.")
+                return None
+        else:
+            print("No 'choices' field in the response.")
+            return None
     except openai.error.OpenAIError as e:
-        print(f"An error occurred: {e}")
-        return []
+        print(f"OpenAI API error occurred: {e}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None
+
 
 # Function for evaluating the chosen answer
 def evaluate_answer(answer, question):
