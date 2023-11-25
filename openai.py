@@ -1,4 +1,3 @@
-
 import os
 import numpy as np
 import random
@@ -6,17 +5,15 @@ import openai
 
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
-n_states = 10  # Number  of questions
-n_actions = 5  # Number of answers to choose from for each question
+n_states = 10
+n_actions = 5
 learning_rate = 0.1
 discount_factor = 0.9
-epsilon = 0.1  # Exploration rate
-n_episodes = 101# Number of training rounds
+epsilon = 0.1
+n_episodes = 101
 
-# Initialize Q-table
 Q = np.zeros((n_states, n_actions))
 
-# Define the function to choose the next action
 def choose_action(state):
     if random.uniform(0, 1) < epsilon:
         action = random.randint(0, n_actions - 1)
@@ -32,19 +29,17 @@ def update_Q(state, action, reward):
     Q[state, action] += learning_rate * (target - predict)
     print(f"Updated Q-table at state: {state}, action: {action}, reward: {reward}")
 
-# Function to interact with GPT-4 (or the appropriate model) via the chat API
 def get_LLM_answers(question):
     print(f"Fetching answers for the question: '{question}'")
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",  # Ensure this is a valid model identifier
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": question}
             ]
         )
         
-        # Extracting the response correctly
         if 'choices' in response and len(response['choices']) > 0:
             message_content = response['choices'][0]['message']['content']
             print(f"Received answer: {message_content}")
@@ -59,15 +54,30 @@ def get_LLM_answers(question):
         print(f"An unexpected error occurred: {e}")
         return None
 
+def is_relevant(answer, question):
+    question_keywords = set(question.lower().split())
+    answer_keywords = set(answer.lower().split())
+    common_keywords = question_keywords.intersection(answer_keywords)
+    return len(common_keywords) > 0
 
-# Function for evaluating the chosen answer
+def is_complete(answer):
+    return len(answer.split()) > 5
+
+def is_correct(answer, question):
+    return is_relevant(answer, question) and is_complete(answer)
+
 def evaluate_answer(answer, question):
-    # Implement the logic to evaluate the answer
-    # Example: Check if the answer is non-empty or contains certain keywords
-    reward = 1 if answer and 'correct' in answer else 0
-    return reward
+    if not answer:
+        return 0
+    score = 0
+    if is_relevant(answer, question):
+        score += 1
+    if is_complete(answer):
+        score += 1
+    if is_correct(answer, question):
+        score += 2
+    return score
 
-# Function to generate or fetch a new question
 def generate_question():
     questions = [
         "What is the capital of France?",
@@ -80,22 +90,20 @@ def generate_question():
     state = questions.index(question) % n_states
     return question, state
 
-# Main Q-learning loop
 for episode in range(n_episodes):
     question, state = generate_question()
     answers = get_LLM_answers(question)
     
     if not answers:
-        continue  # Skip to the next episode if no answers were received
+        continue
 
     action = choose_action(state)
     if action >= len(answers):
-        action = len(answers) - 1  # Adjust if action is out of range
+        action = len(answers) - 1
 
     chosen_answer = answers[action]
     reward = evaluate_answer(chosen_answer, question)
     update_Q(state, action, reward)
 
-# Output the final Q-table
 print("Training completed. Final Q-table:")
 print(Q)
